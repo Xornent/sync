@@ -52,6 +52,20 @@
     >   def move_remote(file, destfile, verbose = False)
     >   def copy_remote(file, destfile, verbose = False)
 
+    note first:
+
+    you should create a 'config.py' under the same directory. like:
+
+    > [6.0, in file ./config.py]
+    >
+    >   oss_utils      = 'ossutil64'
+    >   oss_bucket     = 'bucket-name' 
+    >   sync_dir       = 'C:/Path'
+    >   oss_entry      = 'name@host.onaliyun.com'
+    >   oss_credential = '******************************'
+    >   oss_id         = '************************'
+    >   oss_endpoint   = '***.aliyuncs.com'
+
 
 2)  update logs
 ---------------
