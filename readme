@@ -1,0 +1,141 @@
+
+                                      sync
+                                      ====
+
+1)  introduction
+----------------
+
+    sync utility: upload local filesystem to the remote repository oss, or sync
+    the remote endpoint to the local filesystem.
+
+    configuration: configurations are located in config.py file
+    - oss-bucket: the remote oss bucket name.
+    - sync-dir: local wiki images filesystem.
+    - oss-entry, oss-credential, oss-id: authentication information for oss.
+    - oss-endpoint: required, endpoint for oss connection.
+
+    positional arguments:
+      {push,fetch,diff,clear}
+        available subcommands: push, fetch, diff
+        
+        push            push the local directory to the remote end. only files
+                        with different hash code or length will be uploaded and
+                        replaced in the remote end.
+        fetch           sync and fetch to the local system. only files with
+                        different hash code or length will be uploaded and
+                        replaced at local machine. deletion of the files should
+                        be indicated manually.
+        diff            only compares the local and remote. no file changes will apply
+        clear           clear local cache.
+
+    optional arguments:
+      -h, --help            show this help message and exit
+      -y                    assume yes for all queries.
+      --oss OSS_EXEC        the local oss client executable name.
+      --bucket OSS_BUCKET   the remote oss container bucket.
+      --dir DIR             sync directory.
+      --id ID               the oss user id (see oss tokens).
+      --password PWD        the oss user password (see oss tokens).
+      --endpoint ENDPOINT   the connection endpoint for the oss service. 
+
+    > designed for and only tested for aliyun-oss. (ossutil64). behaviors may
+    > change (mostly in the utility cmdline grammar) if using other oss clients.
+    > however, this can be easily modified in the code. more specifically, you
+    > should re-implement these functions to suit your need:
+    > 
+    > [6.0, in file ./sync]
+    >
+    >   def download_file(file)
+    >   def download_to_working(file)
+    >   def upload_file(file, destfile, verbose = False)
+    >   def upload_direct(file, destfile, verbose = False)
+    >   def move_remote(file, destfile, verbose = False)
+    >   def copy_remote(file, destfile, verbose = False)
+
+
+2)  update logs
+---------------
+
+    1.0  ...................................................  (mar. 31st, 2024)
+
+    designed a simple script to sync my mediawiki data (the images folder and 
+    mysql database) across multiple devices.
+
+    sync-wiki utility: upload local filesystem to the remote repository oss, or 
+    sync the remote endpoint to the local filesystem. this script is specialized
+    for database sync and automatically upload one mysql database to the cloud 
+    .sql file
+
+    configuration: configurations are located in config.py file
+    - oss-bucket: the remote oss bucket name.
+    - oss-entry, oss-credential, oss-id: authentication information for oss.
+    - mysql-user, mysql-password: authentication information for mysql database.
+    - wiki-dbname: the mysql database to sync.
+    - wiki-images: local wiki images filesystem. 
+
+    2.0  ....................................................  (apr. 3rd, 2024)
+
+    updated the sync utility to v2. adding features:
+
+    -   adding a .ignore file to the directory will automatically ignore all 
+        file contents in the directory (and sub-directories). and i decide not 
+        to sync the temp, archive, lockdir and thumb directories since they are 
+        auto-generated.
+
+    -   the fact that they do not auto-generate on my fedora is actually a write
+        protection i have not figured out why ...
+    
+    3.0  ....................................................  (apr. 4th, 2024)
+
+    update the sync utility to v3. this version is for general-purpose non-sql 
+    data, only focused on the file directory sync with support of .ignore 
+    configuration to the remote aliyun oss system.
+
+    it is suited to uploading huge amount of files, making a dirty assumption 
+    on the hash operation: for files < 10 MiB, i calculate the hash as default, 
+    but for files bigger, i only calculate the first KiB of data for each 1 MiB 
+    block (1023/1024 of the data are not taken into consideration!) this may 
+    cause the loss of detection of changed files, but i assume that for huge 
+    files, non- frame shift mutations are rare, ones edits to the file may most 
+    likely disrupts the frames, and thus resulting in changed hash. 
+
+    4.0  ....................................................  (apr. 7th, 2024)
+
+    update utility v4. i add logic to recognize file moving operation and file 
+    copies (based on the exact hash code to identify each file(s) unchanged), 
+    and try to move or copy the file only at local (in case of fetch) and only 
+    at remote (in case of push). this minimize the need of download/upload band 
+    width cost. feel free to move your files before sync. (this will not cost 
+    you any money).
+
+    since the hash code is not strict (they may be more possible for identical 
+    hash code for two files), several things will happen:
+
+    -   you have changed the content of the file, but the system do not 
+        recognize it, thus not uploading your new version during sync. 
+        (major case).
+
+    -   you moved/copied and changed the one file, but do not enough change to 
+        make the hash code vary. this may cause the system to copy/move the 
+        original file with your changes lost. (esp. dangerous when you fetch, 
+        the system won't alarm you when replacing the local file with 'new' 
+        remote files.), this causes a permanent loss to your data.
+
+    for huge files, there is a natural condition when the hash code do not 
+    change, i turned on move/copy alarm by default (can be turned off with -y), 
+    but it is more suitable to look at the diff result manually. 
+
+    5.0  ....................................................  (apr. 8th, 2024)
+
+    > [!!] note: v4's fetch is FAULTY. do not use v4 of code
+
+    -   configs can now be given through command-line. and ossutil.config is 
+        generated automatically through information given in the console or 
+        config.py. (console overwrite the config file settings).
+
+    -   fix copy and move bugs in fetch(). 
+
+    6.0  ...................................................  (apr. 18th, 2024)
+
+    -   minor change, accelerate the hash code calculation by skipping the files 
+        with modified time and size unchanged. 

@@ -1,0 +1,741 @@
+import argparse
+import subprocess
+import os
+import hashlib
+import shutil
+import re
+import importlib
+
+from config import sync_dir, oss_utils, oss_bucket, \
+                   oss_credential, oss_id, oss_endpoint
+
+# format strings to a common length. considering two-byte-long characters in
+# display. put the rules into cn_re.
+
+def format_string(string, limit):
+    cn_re = '[\u201c-\u201d\u3001-\u3011\uff08-\uff1f\u4e00-\u9fa5]'
+
+    cn = re.findall(cn_re, string)
+    cn_length = len(cn)
+    
+    if len(string) + cn_length > limit - 4:
+        x_str = string[-(limit - 4):]
+        cn = len(re.findall(cn_re, x_str))
+        while cn + len(x_str) > limit - 4:
+            x_str = x_str[1:]
+            cn = len(re.findall(cn_re, x_str))
+        
+        return '... ' + x_str
+        
+    else:
+        return ('{:<' + str(limit - cn_length) + '}').format(string)
+
+# build the local file index dictionary and calculate the hash numbers for each
+# file. the output is written to './checksums.tsv'
+    
+def build_local_checksum():
+
+    # ./ossutil64 hash localfile [--type=<value>]
+
+    # the following table describes the parameters that you can configure when
+    # you run the hash command.
+
+    # localfile           the full path of the local file you want to upload.
+    #
+    # --type              the method used to calculate the value of the local
+    #                     file. default value: crc64. valid values:
+    #
+    #                     md5: if --type is set to md5, the MD5 hash and
+    #                          Content-MD5 value are displayed at the same time.
+    #                          The Content-MD5 value is obtained by calculating
+    #                          the MD5 hash to obtain a 128-bit number, and then
+    #                          encode the number in Base64. For more information
+    #                          about Content-MD5, see RFC 1864.
+    #
+    #                     crc64: the CRC-64 is calculated by using Standard
+    #                            ECMA-182.
+
+    local_h, local_l, local_t, local_p = read_local_checksum()
+
+    print('Building local hash checksums ...')
+
+    last_modified = []
+    file_length = []
+    file_name = []
+    hash_num = []
+    file_path = []
+
+    lines = []
+
+    ignore_marks = []
+    for root, dirs, files in os.walk(sync_dir):
+
+        if '.ignore' in files:
+            ignore_marks += [root.replace(sync_dir, '').replace('\\', '/')]
+
+        for file in files:
+
+            absolute_path = os.path.join(root, file)
+            relative_path = absolute_path.replace(sync_dir, '').replace('\\', '/')
+            file_path += [relative_path]
+            file_name += [file]
+
+            file_stat = os.stat(absolute_path)
+
+            tm_last = file_stat.st_mtime
+            last_modified += [tm_last]
+
+            print('\r' + format_string(relative_path, 100), end = '')
+
+            # if exactly the same, we assume it, and skip reading the file 
+            # content for calculations of md5. since most files do not change.
+
+            if relative_path in local_p:
+                index = local_p.index(relative_path)
+                
+                if tm_last == local_t[index]:
+                    
+                    hash_num += [local_h[index]]
+                    file_length += [local_l[index]]
+                    
+                    lines += ['{0}\t{1}\t{2}\t{3}\n'.format(
+                        local_h[index], local_l[index], tm_last, relative_path
+                    )]
+
+                    continue
+            
+            # calculate content md5 identifier and file content length as the
+            # unique identifier for the file
+
+            fp = open(absolute_path, 'rb')
+            fp.seek(0, os.SEEK_END)
+            leng = fp.tell()
+            file_length += [leng]
+
+            md5x = ''
+            fp.seek(0)
+
+            # the md5 of empty strings.
+            
+            # if leng == 0:
+            #     md5x = 'd41d8cd98f00b204e9800998ecf8427e'
+            #     md5x = '00000000000000000000000000000000'
+
+            # for files < 10M, it would be better to digest it all.
+            if leng < 1024 * 1024 * 10:
+                content = fp.read()
+                md5x = hashlib.md5(content).hexdigest()
+
+            else:
+                for x in range(leng // (1024 * 1024)):
+                    fp.seek(x * 1024 * 1024)
+
+                    # here the digest is not strict. it should use 1024*1024 
+                    # but i think the in-place non-frame-shift mutations is
+                    # so rare, that i can do this without the sacrifice of time.
+
+                    content = fp.read(1024)
+                    md5x += hashlib.md5(content).hexdigest()
+                md5x = hashlib.md5(md5x.encode('utf-8')).hexdigest()
+            
+            hash_num += [md5x]
+            fp.close()
+
+            lines += ['{0}\t{1}\t{2}\t{3}\n'.format(
+                md5x, leng, tm_last, relative_path
+            )]
+
+    x = 0
+    for _ in range(len(file_path)):
+
+        for ignore_dir in ignore_marks:
+            if (ignore_dir + '/') in file_path[x]:
+                del file_path[x]
+                del file_name[x]
+                del hash_num[x]
+                del file_length[x]
+                del last_modified[x]
+                del lines[x]
+                x -= 1
+                continue
+
+        x += 1
+
+    for ignore_dir in ignore_marks:
+        file_path += [ignore_dir + '/.ignore']
+        file_name += ['.ignore']
+        hash_num += ['00000000000000000000000000000000']
+        last_modified += [0.0]
+        file_length += [0]
+        lines += ['{0}\t{1}\t{2}\t{3}\n'.format(
+            '00000000000000000000000000000000', 0, 0.0, ignore_dir + '/.ignore'
+        )]
+
+    print('\nSync checksums built.')
+
+    if (os.path.exists('./checksums.tsv')):
+        os.remove('./checksums.tsv')
+
+    checksum = open('./checksums.tsv', 'a', encoding = 'utf-8')
+    checksum.writelines(lines)
+    checksum.close()
+
+    return hash_num, file_length, last_modified, file_path
+
+# download from server into the local corresponding path.
+
+def download_file(file):
+    if os.path.exists(sync_dir + file):
+        os.remove(sync_dir + file)
+
+    params = [oss_utils,
+              'cp',
+              'oss://{0}{1}'.format(oss_bucket, file),
+              sync_dir + file, # may produce paths mixed with '\' and '/'
+              '-c', './ossutil.config']
+    subprocess.run(params, capture_output = True)
+    return '.{0}'.format(file)
+
+# download from server to wd.
+
+def download_to_working(file):
+    params = [oss_utils,
+              'cp',
+              'oss://{0}{1}'.format(oss_bucket, file),
+              '.{0}'.format(file),
+              '-c', './ossutil.config']
+    subprocess.run(params, capture_output = True)
+    return '.{0}'.format(file)
+
+# upload to server using relative path to sync_dir.
+
+def upload_file(file, destfile, verbose = False):
+
+    subprocess.run([oss_utils, 'rm', 'oss://{0}{1}'.format(oss_bucket, destfile),
+                    '-c', './ossutil.config'], capture_output = not verbose)
+    return subprocess.run([oss_utils,
+                            'cp',
+                            sync_dir + file,
+                            'oss://{0}{1}'.format(oss_bucket, destfile),
+                            '-c', './ossutil.config'], capture_output = not verbose)
+
+# upload to server from any path.
+
+def upload_direct(file, destfile, verbose = False):
+
+    subprocess.run([oss_utils, 'rm', 'oss://{0}{1}'.format(oss_bucket, destfile),
+                    '-c', './ossutil.config'], capture_output = not verbose)
+    return subprocess.run([oss_utils,
+                            'cp',
+                            file,
+                            'oss://{0}{1}'.format(oss_bucket, destfile),
+                            '-c', './ossutil.config'], capture_output = not verbose)
+
+# move at remote.
+
+def move_remote(file, destfile, verbose = False):
+
+    subprocess.run([oss_utils, 'cp', 
+                    'oss://{0}{1}'.format(oss_bucket, file),
+                    'oss://{0}{1}'.format(oss_bucket, destfile),
+                    '-c', './ossutil.config'], capture_output = not verbose)
+    subprocess.run([oss_utils, 'rm', 'oss://{0}{1}'.format(oss_bucket, file),
+                    '-c', './ossutil.config'], capture_output = not verbose)
+    
+# copy at remote.
+    
+def copy_remote(file, destfile, verbose = False):
+
+    subprocess.run([oss_utils, 'cp', 
+                    'oss://{0}{1}'.format(oss_bucket, file),
+                    'oss://{0}{1}'.format(oss_bucket, destfile),
+                    '-c', './ossutil.config'], capture_output = not verbose)
+
+# move at local. 
+    
+def copy_local(file, dest, verbose = False):
+
+    if not os.path.exists(os.path.dirname(dest)):
+        os.makedirs(os.path.dirname(dest))
+    
+    if os.name == 'nt':
+        shutil.copy(file.replace('/', '\\'), dest.replace('/','\\'))
+    else: shutil.copy(file, dest)
+
+# copy at local.
+    
+def move_local(file, dest, verbose = False):
+
+    if not os.path.exists(os.path.dirname(dest)):
+        os.makedirs(os.path.dirname(dest))
+    
+    if os.name == 'nt':
+        shutil.move(file.replace('/', '\\'), dest.replace('/', '\\'))
+    else: shutil.move(file, dest)
+
+# download and parse a new copy of remote checksums. requires internet connection.
+
+def read_remote_checksum():
+
+    if (os.path.exists('./sync-checksums.tsv')):
+        os.remove('./sync-checksums.tsv')
+
+    tsv = download_to_working('/sync-checksums.tsv')
+
+    if not os.path.exists('./sync-checksums.tsv'):
+        return [], [], [], []
+
+    fp = open(tsv, 'r', encoding = 'utf-8')
+    content = fp.read().splitlines()
+
+    hash_num = []
+    file_length = []
+    last_modified = []
+    file_path = []
+
+    for line in content:
+        ihash, ilen, itime, ipath = line.split('\t')
+        hash_num += [ihash]
+        file_length += [int(ilen)]
+        last_modified += [float(itime)]
+        file_path += [ipath]
+
+    return hash_num, file_length, last_modified, file_path
+
+def read_local_checksum():
+
+    if not os.path.exists('./checksums.tsv'):
+        return [], [], [], []
+
+    fp = open('./checksums.tsv', 'r', encoding = 'utf-8')
+    content = fp.read().splitlines()
+
+    hash_num = []
+    file_length = []
+    last_modified = []
+    file_path = []
+
+    for line in content:
+        ihash, ilen, itime, ipath = line.split('\t')
+        hash_num += [ihash]
+        file_length += [int(ilen)]
+        last_modified += [float(itime)]
+        file_path += [ipath]
+
+    return hash_num, file_length, last_modified, file_path
+
+def push(all_yes):
+
+    l_hash_num, l_file_length, l_last_modified, l_file_path = build_local_checksum()
+    r_hash_num, r_file_length, r_last_modified, r_file_path = read_remote_checksum()
+
+    # we do not remove files on the cloud if the local corresponded delete it,
+    # only to update the checksum file category and to inform the updater not
+    # to sync it the next time. it remains on cloud however.
+
+    # so the update table is:
+    #
+    #   local     remote    changed   op.
+    #   +         +         +         copy
+    #   +         +         -         -
+    #   +         -         auto      copy
+    #   -         +         deleted   -
+
+    overview_uploads = []
+    overview_modified = []
+    overview_removed = []
+    num_unchanged = 0
+
+    for x in range(len(l_file_path)):
+        local_file = l_file_path[x]
+
+        if local_file in r_file_path:
+            rx = r_file_path.index(local_file)
+
+            # the newer condition
+            is_updated = (r_hash_num[rx] != l_hash_num[x]) or \
+                         (r_file_length[rx] != l_file_length[x])
+
+            if is_updated:
+                overview_modified += [print_message('\033[1;33m', 'Modify', local_file)]
+                upload_file(local_file, local_file)
+
+            else:
+                num_unchanged += 1
+                pass
+
+        else:
+
+            if l_hash_num[x] in r_hash_num and l_hash_num[x] != '00000000000000000000000000000000':
+                remotex = r_hash_num.index(l_hash_num[x])
+                if not r_file_path[remotex] in l_file_path:
+                    
+                    # the local hash num exists in remote. but the new local file did not.
+                    # this indicates a move of remote files. but the hash num can match 
+                    # accidentally, so we ask the user.
+                    if all_yes:
+                        overview_uploads += [print_message('\033[1;33m', 'Moving', local_file)]
+                        move_remote(r_file_path[remotex], local_file)
+
+                    else:
+                        ans = input('\n\n\033[1;32m' +
+                            'It seems that you have moved a remote file to a new local location.\n' +
+                            'If you confirm it is, we will directly move in the remote [y]. or if\n' +
+                            'you insists on uploading a new copy without changing the original one.\n' +
+                            'from : ' + r_file_path[remotex] + '\n' +
+                            'to   : ' + local_file + '\n' +
+                            '[y/n]\033[0m >')
+
+                        if ans == 'y':
+                            overview_uploads += [print_message('\033[1;33m', 'Moving', local_file)]
+                            move_remote(r_file_path[remotex], local_file)
+                        elif ans == 'n':
+                            overview_uploads += [print_message('\033[1;32m', 'Upload', local_file)]
+                            upload_file(local_file, local_file)
+                
+                else:
+
+                    # the local hash num exists in remote. seems to be a copy of existing file.
+                    if all_yes:
+                        overview_uploads += [print_message('\033[1;33m', ' Copy ', local_file)]
+                        copy_remote(r_file_path[remotex], local_file)
+
+                    else:
+                        ans = input('\n\n\033[1;32m' +
+                            'It seems that you have copied a remote file to a new local location.\n' +
+                            'If you confirm it is, we will directly copy in the remote [y]. or if\n' +
+                            'you insists on uploading a new copy without changing the original one.\n' +
+                            'from : ' + r_file_path[remotex] + '\n' +
+                            'to   : ' + local_file + '\n' +
+                            '[y/n]\033[0m >')
+
+                        if ans == 'y':
+                            overview_uploads += [print_message('\033[1;33m', ' Copy ', local_file)]
+                            copy_remote(r_file_path[remotex], local_file)
+                        elif ans == 'n':
+                            overview_uploads += [print_message('\033[1;32m', 'Upload', local_file)]
+                            upload_file(local_file, local_file)
+
+            else: 
+                overview_uploads += [print_message('\033[1;32m', 'Upload', local_file)]
+                upload_file(local_file, local_file)
+
+    for x in range(len(r_file_path)):
+        remote_file = r_file_path[x]
+
+        if not remote_file in l_file_path:
+            overview_removed += [print_message('\033[1;31m', 'Remove', remote_file)]
+
+    print('{:<80}'.format('Upload files finished.'))
+
+    print('\n\033[1;32m{0} files uploaded.\033[0m'
+          .format(str(len(overview_uploads))))
+    for x in overview_uploads: print(x)
+
+    print('\n\033[1;33m{0} files modified.\033[0m'
+          .format(str(len(overview_modified))))
+    for x in overview_modified: print(x)
+
+    print('\n\033[1;31m{0} files removed compared with remote.\033[0m'
+          .format(str(len(overview_removed))))
+    for x in overview_removed: print(x)
+
+    print('\n\033[1;30m{0} files unchanged. ({1} local)\033[0m'
+          .format( num_unchanged, len(l_file_path)))
+
+    print('')
+
+    print('\033[1;32m{0}\033[0m'
+          .format( 'Uploading updated file catalog checksums ...' ))
+    upload_direct('./checksums.tsv', '/sync-checksums.tsv')
+
+    print('\n\033[1;32m{0}\033[0m'
+          .format( 'All jobs finished.' ))
+
+def fetch(all_yes):
+
+    l_hash_num, l_file_length, l_last_modified, l_file_path = build_local_checksum()
+    r_hash_num, r_file_length, r_last_modified, r_file_path = read_remote_checksum()
+
+    overview_uploads = []
+    overview_modified = []
+    overview_removed = []
+    num_unchanged = 0
+
+    for x in range(len(r_file_path)):
+        remote_file = r_file_path[x]
+
+        if remote_file in l_file_path:
+            lx = l_file_path.index(remote_file)
+
+            # the newer condition
+            is_updated = (r_hash_num[x] != l_hash_num[lx]) or \
+                         (r_file_length[x] != l_file_length[lx])
+
+            if is_updated:
+                overview_modified += [print_message('\033[1;33m', 'Modify', remote_file)]
+                download_file(remote_file)
+
+            else:
+                num_unchanged += 1
+                pass
+
+        else:
+
+            if r_hash_num[x] in l_hash_num and r_hash_num[x] != '00000000000000000000000000000000':
+                localx = l_hash_num.index(r_hash_num[x])
+                if not l_file_path[localx] in r_file_path:
+                    
+                    # the new remote file has an existing hash num at other place in the local
+                    if all_yes:
+                        overview_uploads += [print_message('\033[1;33m', 'Moving', remote_file)]
+                        move_local (sync_dir + l_file_path[localx],
+                                    sync_dir + remote_file)
+                        
+                    else:
+                        ans = input('\n\n\033[1;32m' +
+                            'It seems that you have moved a local file to a new remote location.\n' +
+                            'If you confirm it is, we will directly move locally [y]. or if\n' +
+                            'you insists on downloading a new copy without changing the original one.\n' +
+                            'from : ' + l_file_path[localx] + '\n' +
+                            'to   : ' + remote_file + '\n' +
+                            '[y/n]\033[0m > ')
+
+                        if ans == 'y':
+                            overview_uploads += [print_message('\033[1;33m', 'Moving', remote_file)]
+                            move_local (sync_dir + l_file_path[localx],
+                                        sync_dir + remote_file)
+                        elif ans == 'n':
+                            overview_uploads += [print_message('\033[1;32m', 'Append', remote_file)]
+                            download_file(remote_file)
+
+                else:
+
+                    if all_yes:
+                        overview_uploads += [print_message('\033[1;33m', ' Copy ', remote_file)]
+                        copy_local (sync_dir + l_file_path[localx],
+                                    sync_dir + remote_file)
+                        
+                    else:
+                        ans = input('\n\n\033[1;32m' +
+                            'It seems that you have copied a local file to a new remote location.\n' +
+                            'If you confirm it is, we will directly copy locally [y]. or if\n' +
+                            'you insists on downloading a new copy without changing the original one.\n' +
+                            'from : ' + l_file_path[localx] + '\n' +
+                            'to   : ' + remote_file + '\n' +
+                            '[y/n]\033[0m > ')
+
+                        if ans == 'y':
+                            overview_uploads += [print_message('\033[1;33m', ' Copy ', remote_file)]
+                            copy_local (sync_dir + l_file_path[localx],
+                                        sync_dir + remote_file)
+                        elif ans == 'n':
+                            overview_uploads += [print_message('\033[1;32m', 'Append', remote_file)]
+                            download_file(remote_file)
+
+            else: 
+                overview_uploads += [print_message('\033[1;32m', 'Append', remote_file)]
+                download_file(remote_file)
+
+    for x in range(len(l_file_path)):
+        local_file = l_file_path[x]
+
+        if not local_file in r_file_path:
+            overview_removed += [print_message('\033[1;31m', 'Remove', local_file)]
+
+    print('{:<80}'.format('\rAppending changes are applied.'))
+
+    if len(overview_removed) > 0:
+
+        print('\n\033[1;31m{0} files removed compared with remote.\033[0m'
+          .format(str(len(overview_removed))))
+        for x in overview_removed: print(x)
+
+        ans = input('\033[1;31m' +
+                    'These local files do not find their correspondings on remote endpoint.\n' +
+                    'They may be deleted since last sync, do you want to remove the local\n' +
+                    'ones on your computer? This operation cannot be reversed! [y/n]\033[0m > ')
+
+        if ans == 'y':
+            for x in range(len(l_file_path)):
+                local_file = l_file_path[x]
+
+                if not local_file in r_file_path:
+                    os.remove(sync_dir + local_file)
+                    overview_removed += [print_message('\033[1;31m', 'Remove', local_file)]
+
+            print('{:<80}'.format('Appending changes are applied.'))
+
+        else:
+            print('User cancelled the operation.')
+
+
+    print('\n\033[1;32m{0} files uploaded.\033[0m'
+          .format(str(len(overview_uploads))))
+    for x in overview_uploads: print(x)
+
+    print('\n\033[1;33m{0} files modified.\033[0m'
+          .format(str(len(overview_modified))))
+    for x in overview_modified: print(x)
+
+    print('')
+
+    print('\n\033[1;32m{0}\033[0m'
+          .format('All jobs finished.' ))
+
+def diff():
+
+    l_hash_num, l_file_length, l_last_modified, l_file_path = build_local_checksum()
+    r_hash_num, r_file_length, r_last_modified, r_file_path = read_remote_checksum()
+
+    for x in range(len(l_file_path)):
+        local_file = l_file_path[x]
+
+        if local_file in r_file_path:
+            rx = r_file_path.index(local_file)
+
+            # the newer condition
+            is_updated = (r_hash_num[rx] != l_hash_num[x]) or \
+                         (r_file_length[rx] != l_file_length[x])
+
+            if is_updated:
+                print('[r] {:<7} > [l] {:<7} '.format(r_hash_num[rx][:7], l_hash_num[x][:7]), end = '')
+                print_message('\033[1;33m', 'Modify', local_file, overwrite = False)
+
+            else: pass
+
+        else:
+
+            if l_hash_num[x] in r_hash_num and l_hash_num[x] != '00000000000000000000000000000000':
+
+                remotex = r_hash_num.index(l_hash_num[x])
+                if not r_file_path[remotex] in l_file_path:
+                    print('[r] {:<7} > [l] {:<7} '.format(r_hash_num[remotex][:7], '-------'), end = '')
+                    print_message('\033[1;33m', ' Move ', r_file_path[remotex], overwrite = False)
+                    print('[r] {:<7} > [l] {:<7} '.format('-------', l_hash_num[x][:7]), end = '')
+                    print_message('\033[1;30m', '  To  ', local_file, overwrite = False)
+                
+                else:
+                    print('[r] {:<7} > [l] {:<7} '.format(r_hash_num[remotex][:7], '-------'), end = '')
+                    print_message('\033[1;33m', ' Copy ', r_file_path[remotex], overwrite = False)
+                    print('[r] {:<7} > [l] {:<7} '.format('-------', l_hash_num[x][:7]), end = '')
+                    print_message('\033[1;30m', '  To  ', local_file, overwrite = False)
+            
+            else:        
+                print('[r] {:<7} > [l] {:<7} '.format('-------', l_hash_num[x][:7]), end = '')
+                print_message('\033[1;32m', 'Upload', local_file, overwrite = False)
+
+    for x in range(len(r_file_path)):
+        remote_file = r_file_path[x]
+
+        if not remote_file in l_file_path:
+            print('[r] {:<7} > [l] {:<7} '.format(r_hash_num[x][:7], '-------'), end = '')
+            print_message('\033[1;31m', 'Remove', remote_file, overwrite = False)
+
+def print_message(color, title, path, overwrite = True):
+    if overwrite:
+        print('\r{0}[{1}]\033[0m'.format(color, title), format_string(path, 70), end = '')
+        return '{0}[{1}]\033[0m'.format(color, title) + ' ' + format_string(path, 70)
+    else:
+        print('{0}[{1}]\033[0m'.format(color, title), format_string(path, 70))
+        return '{0}[{1}]\033[0m'.format(color, title) + ' ' + format_string(path, 70)
+
+def parseArguments():
+    
+    desc = \
+"""
+sync utility: upload local filesystem to the remote repository oss, or sync
+the remote endpoint to the local filesystem. [v6, 24.04.15]
+
+configuration: configurations are located in config.py file
+- oss-bucket: the remote oss bucket name.       
+- sync-dir: local wiki images filesystem.
+- oss-entry, oss-credential, oss-id: authentication information for oss.
+- oss-endpoint: required, endpoint for oss connection.
+"""
+    parser = argparse.ArgumentParser(description = desc, 
+                                     formatter_class = argparse.RawTextHelpFormatter)
+
+    all_yes = parser.add_argument('-y', action = 'store_true', dest = 'all_yes',
+                                  help = 'assume yes for all queries.')
+    
+    ossname = parser.add_argument('--oss', dest = 'oss_exec', default = None,
+                                  help = 'the local oss client executable name.')
+    ossbucket = parser.add_argument('--bucket', dest = 'oss_bucket', default = None,
+                                     help = 'the remote oss container bucket.')
+    syncdir = parser.add_argument('--dir', dest = 'dir', default = None,
+                                  help = 'sync directory.')
+    ossid = parser.add_argument('--id', dest = 'id', default = None,
+                                help = 'the oss user id (see oss tokens).')
+    osspwd = parser.add_argument('--password', dest = 'pwd', default = None,
+                                 help = 'the oss user password (see oss tokens).')
+    ossep = parser.add_argument('--endpoint', dest = 'endpoint', default = None,
+                                help = 'the connection endpoint for the oss service.')
+    
+    subparsers = parser.add_subparsers(dest = 'command',
+                                       help = 'available subcommands: push, fetch, diff')
+
+    parser_push = subparsers.add_parser('push', help =
+                                        'push the local directory to the remote end. only files \n' +
+                                        'with different hash code or length will be uploaded and \n' +
+                                        'replaced in the remote end.')
+
+    parser_fetc = subparsers.add_parser('fetch', help =
+                                        'sync and fetch to the local system. only files with \n' +
+                                        'different hash code or length will be uploaded and \n' +
+                                        'replaced at local machine. deletion of the files should \n' +
+                                        'be indicated manually.')
+
+    parser_diff = subparsers.add_parser('diff', help =
+                                        'only compares the local and remote. no file changes will apply')
+
+    parser_clear = subparsers.add_parser('clear', help = 'clear local cache.')
+
+    args = parser.parse_args()
+    return args
+
+if __name__ == "__main__":
+
+    args = parseArguments()
+
+    if args.oss_exec != None:
+        oss_utils = args.oss_exec
+    if args.oss_bucket != None:
+        oss_bucket = args.oss_bucket
+    if args.dir != None:
+        sync_dir = args.dir
+    if args.id != None:
+        oss_id = args.id
+    if args.pwd != None:
+        oss_credential = args.pwd
+    if args.endpoint != None:
+        oss_endpoint = args.endpoint
+
+    if os.path.exists('./ossutil.config'):
+        os.remove('./ossutil.config')
+    
+    with open('./ossutil.config', 'w') as cfgfile:
+        cfgfile.writelines([
+            '[Credentials]',
+            '\n    language=en',
+            '\n    accessKeySecret=' + oss_credential,
+            '\n    accessKeyID=' + oss_id,
+            '\n    endpoint=' + oss_endpoint
+        ])
+
+    if args.command == 'push':
+        push(args.all_yes)
+
+    elif args.command == 'fetch':
+        fetch(args.all_yes)
+
+    elif args.command == 'diff':
+        diff()
+
+    elif args.command == 'clear':
+        if os.path.exists('./checksums.tsv'):
+            os.remove('./checksums.tsv')
+        if os.path.exists('./sync-checksums.tsv'):
+            os.remove('./sync-checksums.tsv')
+        if os.path.exists('./ossutil.config'):
+            os.remove('./ossutil.config')

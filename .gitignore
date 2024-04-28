@@ -1,0 +1,12 @@
+
+# python cache
+
+__pycache__
+
+# runtime cache
+
+*.tsv
+ossutil.config
+config.py
+
+.ignore
