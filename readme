@@ -5,66 +5,10 @@
 1)  introduction
 ----------------
 
-    sync utility: upload local filesystem to the remote repository oss, or sync
-    the remote endpoint to the local filesystem.
+    preparing for version 7.x
 
-    configuration: configurations are located in config.py file
-    - oss-bucket: the remote oss bucket name.
-    - sync-dir: local wiki images filesystem.
-    - oss-entry, oss-credential, oss-id: authentication information for oss.
-    - oss-endpoint: required, endpoint for oss connection.
-
-    positional arguments:
-      {push,fetch,diff,clear}
-        available subcommands: push, fetch, diff
-        
-        push            push the local directory to the remote end. only files
-                        with different hash code or length will be uploaded and
-                        replaced in the remote end.
-        fetch           sync and fetch to the local system. only files with
-                        different hash code or length will be uploaded and
-                        replaced at local machine. deletion of the files should
-                        be indicated manually.
-        diff            only compares the local and remote. no file changes will apply
-        clear           clear local cache.
-
-    optional arguments:
-      -h, --help            show this help message and exit
-      -y                    assume yes for all queries.
-      --oss OSS_EXEC        the local oss client executable name.
-      --bucket OSS_BUCKET   the remote oss container bucket.
-      --dir DIR             sync directory.
-      --id ID               the oss user id (see oss tokens).
-      --password PWD        the oss user password (see oss tokens).
-      --endpoint ENDPOINT   the connection endpoint for the oss service. 
-
-    > designed for and only tested for aliyun-oss. (ossutil64). behaviors may
-    > change (mostly in the utility cmdline grammar) if using other oss clients.
-    > however, this can be easily modified in the code. more specifically, you
-    > should re-implement these functions to suit your need:
-    > 
-    > [6.0, in file ./sync]
-    >
-    >   def download_file(file)
-    >   def download_to_working(file)
-    >   def upload_file(file, destfile, verbose = False)
-    >   def upload_direct(file, destfile, verbose = False)
-    >   def move_remote(file, destfile, verbose = False)
-    >   def copy_remote(file, destfile, verbose = False)
-
-    note first:
-
-    you should create a 'config.py' under the same directory. like:
-
-    > [6.0, in file ./config.py]
-    >
-    >   oss_utils      = 'ossutil64'
-    >   oss_bucket     = 'bucket-name' 
-    >   sync_dir       = 'C:/Path'
-    >   oss_entry      = 'name@host.onaliyun.com'
-    >   oss_credential = '******************************'
-    >   oss_id         = '************************'
-    >   oss_endpoint   = '***.aliyuncs.com'
+    [UNDER CONSTRUCTION]
+    do not fork or use the software until i finish this section.
 
 
 2)  update logs
@@ -153,3 +97,13 @@
 
     -   minor change, accelerate the hash code calculation by skipping the files 
         with modified time and size unchanged. 
+
+    7.0  ....................................................  (mar. 3rd, 2024)
+
+    -   a rewrite, and major change in structure to aim as a more general-
+        purpose utility program. highly modular to be extended.
+    
+    -   supports merge conflicts.
+
+    -   prone to be instable. do not use this version before i stablize the 
+        interface and write the introduction section.

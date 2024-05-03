@@ -1,0 +1,11 @@
+
+# configuration of task interfaces. each task can get access to the functions of
+# several interfaces. this file should only be changed by the developer. changes
+# made by the user are prone to cause errors. 
+#
+# task	intf1	intf2	...	intf_n
+
+# all lines starting with '#' and all empty lines will be ignored.
+
+filesystem	oss
+# sql	oss	db

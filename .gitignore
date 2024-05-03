@@ -10,3 +10,11 @@ ossutil.config
 config.py
 
 .ignore
+
+conf/targets
+conf/filesystem.*
+conf/oss.*
+
+# vscode cache
+
+.vscode
