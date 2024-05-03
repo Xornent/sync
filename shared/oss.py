@@ -49,7 +49,18 @@ def init(app, provider, kwargs):
 
     # aliasing the private fields.
     kwargs['app'] = app
-    kwargs['config-file'] = kwargs['app'] + '/conf/oss.config'
+
+    task_name = kwargs['_name'].replace('/', "_").replace('\\', "_") \
+                               .replace(':', "_").replace('*', "_") \
+                               .replace('?', "_").replace('|', "_") \
+                               .replace('<', "_").replace('>', "_") \
+                               .replace('"', "_")
+    conf_dir = app + '/conf/{0}'.format(task_name)
+
+    if not os.path.exists(conf_dir):
+        os.makedirs(conf_dir)
+
+    kwargs['config-file'] = conf_dir + '/oss.config'
     
     if os.path.exists(kwargs['config-file']):
         os.remove(kwargs['config-file'])

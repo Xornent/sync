@@ -59,8 +59,18 @@ def init(app, providers: dict, kwargs: dict):
     #   download-rel: (str, str) -> str
     #   upload-abs: (str, str) -> str
     #   upload-rel: (str, str) -> str
+
+    task_name = kwargs['_name'].replace('/', "_").replace('\\', "_") \
+                               .replace(':', "_").replace('*', "_") \
+                               .replace('?', "_").replace('|', "_") \
+                               .replace('<', "_").replace('>', "_") \
+                               .replace('"', "_")
     
-    conf_dir = app + '/conf'
+    conf_dir = app + '/conf/{0}'.format(task_name)
+
+    if not os.path.exists(conf_dir):
+        os.makedirs(conf_dir)
+    
     remote_chksum = conf_dir + '/filesystem.remote'
     current_chksum = conf_dir + '/filesystem.current'
     last_local_chksum = conf_dir + '/filesystem.last-local'
@@ -415,7 +425,7 @@ def init(app, providers: dict, kwargs: dict):
             if not remote_file in l_file_path:
                 overview_removed += [print_message('\033[1;31m', '-', remote_file)]
 
-        if len(overview_uploads) + len(overview_modified) > 0:
+        if len(overview_uploads) + len(overview_modified) + len(overview_removed) > 0:
             print('\n')
 
         # here, we will handle the user confirmation using cli.

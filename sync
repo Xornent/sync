@@ -181,7 +181,8 @@ if __name__ == "__main__":
         
         kwargs = {
             'app': app,
-            '_task': task
+            '_task': task,
+            '_name': name
         }
 
         task_m = load_task(app, task)
@@ -220,7 +221,8 @@ if __name__ == "__main__":
 
         kwargs = {
             'app': app,
-            '_task': task
+            '_task': task,
+            '_name': name
         }
 
         task_m = load_task(app, task)
@@ -280,6 +282,7 @@ if __name__ == "__main__":
 
             kwargs = copy.deepcopy(confs[name])
             kwargs['y'] = args.y
+            kwargs['_name'] = name
 
             call = check_params(app, confs[name]['_task'], kwargs)
             call[args.command]()
