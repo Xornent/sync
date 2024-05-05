@@ -1,5 +1,5 @@
 
-# ./tasks/file_system.py
+# ./tasks/filesystem.py
 #   the sync task to sync local and remote file systems.
 #
 #   tasks can make use of one or more interface providers, and utilize the 
@@ -896,6 +896,8 @@ def init(app, providers: dict, kwargs: dict):
             read_local_last_checksum()
         r_hash_num, r_file_length, r_last_modified, r_stime, r_file_path = \
             read_remote_checksum()
+        
+        print('')
 
         for x in range(len(l_file_path)):
             local_file = l_file_path[x]
@@ -916,14 +918,25 @@ def init(app, providers: dict, kwargs: dict):
                 if is_updated:
 
                     if not is_newer:
-                        print('[r] {:<7} > [l] {:<7} '.format(r_hash_num[rx][:7],
-                                                              l_hash_num[x][:7]), end = '')
-                        print_message('\033[1;33m', '~', local_file, overwrite = False)
+                        fore_red()
+                        print('[r] {:<7}'.format(r_hash_num[rx][:7]), end = '')
+                        ansi_reset()
+                        print(' > ', end = '')
+                        fore_green()
+                        print('[l] {:<7}'.format(l_hash_num[x][:7]), end = '')
+                        ansi_reset()
+                        print_message(' \033[1;33m', '~', local_file, overwrite = False)
                     
                     else:
-                        print('[r] {:<7} > [l] {:<7} '.format(r_hash_num[rx][:7],
-                                                              l_hash_num[x][:7]), end = '')
-                        print_message('\033[1;33m', '!', local_file, overwrite = False)
+                        fore_red()
+                        print('[r] {:<7}'.format(r_hash_num[rx][:7]), end = '')
+                        ansi_reset()
+                        print(' > ', end = '')
+                        fore_green()
+                        print('[l] {:<7}'.format(l_hash_num[x][:7]), end = '')
+                        ansi_reset()
+                        print_message(' \033[1;33m', '!', local_file, overwrite = False)
+                
                 else: pass
 
             else:
@@ -932,31 +945,64 @@ def init(app, providers: dict, kwargs: dict):
 
                     remotex = r_hash_num.index(l_hash_num[x])
                     if not r_file_path[remotex] in l_file_path:
-                        print('[r] {:<7} > [l] {:<7} '.format(r_hash_num[remotex][:7], 
-                                                              '-------'), end = '')
-                        print_message('\033[1;33m', 'v', 
-                                      r_file_path[remotex], overwrite = False)
-                        print('[r] {:<7} > [l] {:<7} '.format('-------', 
-                                                              l_hash_num[x][:7]), end = '')
+                        fore_red()
+                        print('[r] {:<7}'.format(r_hash_num[remotex][:7]), end = '')
+                        ansi_reset()
+                        print(' > ', end = '')
+                        fore_green()
+                        print('[l] {:<7}'.format('-------'), end = '')
+                        ansi_reset()
+                        print_message(' \033[1;33m', 'v', r_file_path[remotex], overwrite = False)
+                        
+                        fore_red()
+                        print('[r] {:<7}'.format('-------'), end = '')
+                        ansi_reset()
+                        print(' > ', end = '')
+                        fore_green()
+                        print('[l] {:<7}'.format(l_hash_num[x][:7]), end = '')
+                        ansi_reset()
                         print_message('\033[1;30m', '.', local_file, overwrite = False)
 
                     else:
-                        print('[r] {:<7} > [l] {:<7} '.format(r_hash_num[remotex][:7], 
-                                                              '-------'), end = '')
-                        print_message('\033[1;33m', 'c', r_file_path[remotex], overwrite = False)
-                        print('[r] {:<7} > [l] {:<7} '.format('-------', 
-                                                              l_hash_num[x][:7]), end = '')
-                        print_message('\033[1;30m', '.', local_file, overwrite = False)
+                        fore_red()
+                        print('[r] {:<7}'.format(r_hash_num[remotex][:7]), end = '')
+                        ansi_reset()
+                        print(' > ', end = '')
+                        fore_green()
+                        print('[l] {:<7}'.format('-------'), end = '')
+                        ansi_reset()
+                        print_message(' \033[1;33m', 'c', r_file_path[remotex], overwrite = False)
 
-                else:        
-                    print('[r] {:<7} > [l] {:<7} '.format('-------', l_hash_num[x][:7]), end = '')
-                    print_message('\033[1;32m', '+', local_file, overwrite = False)
+                        fore_red()
+                        print('[r] {:<7}'.format('-------'), end = '')
+                        ansi_reset()
+                        print(' > ', end = '')
+                        fore_green()
+                        print('[l] {:<7}'.format(l_hash_num[x][:7]), end = '')
+                        ansi_reset()
+                        print_message(' \033[1;30m', '.', local_file, overwrite = False)
+
+                else:
+                    fore_red()
+                    print('[r] {:<7}'.format('-------'), end = '')
+                    ansi_reset()
+                    print(' > ', end = '')
+                    fore_green()
+                    print('[l] {:<7}'.format(l_hash_num[x][:7]), end = '')
+                    ansi_reset()
+                    print_message(' \033[1;32m', '+', local_file, overwrite = False)
 
         for x in range(len(r_file_path)):
             remote_file = r_file_path[x]
 
             if not remote_file in l_file_path:
-                print('[r] {:<7} > [l] {:<7} '.format(r_hash_num[x][:7], '-------'), end = '')
+                fore_red()
+                print('[r] {:<7}'.format(r_hash_num[x][:7]), end = '')
+                ansi_reset()
+                print(' > ', end = '')
+                fore_green()
+                print('[l] {:<7}'.format('-------'), end = '')
+                ansi_reset()
                 print_message('\033[1;31m', '-', remote_file, overwrite = False)
 
     return {
