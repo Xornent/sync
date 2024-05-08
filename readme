@@ -1,20 +1,159 @@
 
-                                      sync
+                                      sync (8)
                                       ====
 
 1)  introduction
 ----------------
 
-    preparing for version 7.x
+    you can sync filesystems and local sql databases using a remote object
+    storage service.
 
-    [UNDER CONSTRUCTION]
-    do not fork or use the software until i finish this section.
+    for now, i only implement the connection to aliyun oss service, and for
+    database import/export, only the mysql backend is supported. it will be
+    easy for you to implement other oss connections, other database backends,
+    or other tasks (for example, extracting any information from local as 
+    you like and upload them to the remote).
+    
+    for how to implement your own backends, see section 'architecture'.
 
 
-2)  update logs
+2)  setup guide
 ---------------
 
-    1.0  ...................................................  (mar. 31st, 2024)
+    now suppose you just want to use the aliyun oss as the storage service, and
+    mysql for database dumps.
+
+    2.1) set up aliyun oss
+    ----------------------
+
+    *   download the commandline utility `ossutil` from aliyun.
+        https://www.alibabacloud.com/help/zh/oss/developer-reference/ossutil
+    
+    *   you should create an oss bucket, and set appropriate previleges for your
+        user. as you create your oss user, you may be informed of your login
+        credentials and id.
+
+    2.2) configure a local task
+    ---------------------------
+
+    you can create a local task by `python sync add` command. each task has
+    a task type, here, one of `filesystem` or `database`
+
+    *   the `filesystem` task syncs a local filesystem to the remote bucket. 
+        when you call `push` or `fetch` command, it will compare the local file
+        content with the remote, and decide which files to upload/download.
+    
+    *   the `database` task automatically dumps one of your sql databases, and
+        sync that dump file to the remote. and when you call `fetch`, it 
+        fetches the remote dump, check if it is newer, and alarms you to 
+        overwrite your local database with that dump.
+
+    you will have to fill the configurations as follows:
+
+    >> python sync -h
+
+    usage: sync [-h] [-y] {add, remove, config, list, push, fetch, diff} ...
+
+    sync between local and remote file systems. [v8, 2024.05.08]
+    application installed in: D:/categories/.sync
+    registered tasks: filesystem, database
+    
+    positional arguments:
+      {add,remove,config,list,push,fetch,diff}
+        add                 add and configure a sync task
+        remove              remove a sync task
+        config              show or modify the task configuration
+        list                list configured tasks
+        push                perform push for the tasks
+        fetch               perform fetch for all tasks
+        diff                show the difference between local and remote for all the tasks
+    
+    optional arguments:
+      -h, --help            show this help message and exit
+      -y                    assume yes for all queries.
+
+    >> python sync add -h
+    >> python sync config -h
+
+    usage: sync add [-h] [-oss-provider OSS-PROVIDER] [-id ID] [-endpoint ENDPOINT] 
+                    [-bucket BUCKET] [-oss OSS] [-credential CREDENTIAL] [-dest DEST] 
+                    [-db-provider DB-PROVIDER] [-dbname DBNAME] [-mysql MYSQL]
+                    [-mysql-pwd MYSQL-PWD] [-mysqldump MYSQLDUMP] [-mysqladmin MYSQLADMIN] 
+                    [-mysql-user MYSQL-USER] add-name add-task
+
+    positional arguments:
+      add-name                      the name of the task
+      add-task                      type of the sync task, e.g. filesystem
+
+    optional arguments:
+      -h, --help                    show this help message and exit
+      -oss-provider OSS-PROVIDER    provider for the interface oss [filesystem]
+      -id ID                        [oss/aliyun]
+      -endpoint ENDPOINT            [oss/aliyun]
+      -bucket BUCKET                [oss/aliyun]
+      -oss OSS                      [oss/aliyun]
+      -credential CREDENTIAL        [oss/aliyun]
+      -dest DEST                    [oss/aliyun]
+      -db-provider DB-PROVIDER      provider for the interface db [database]
+      -dbname DBNAME                [db/mysql]
+      -mysql MYSQL                  [db/mysql]
+      -mysql-pwd MYSQL-PWD          [db/mysql]
+      -mysqldump MYSQLDUMP          [db/mysql]
+      -mysqladmin MYSQLADMIN        [db/mysql]
+      -mysql-user MYSQL-USER        [db/mysql]
+
+    a `filesystem` task requires you to fill the oss interface (-oss-provider and
+    any fields that marks [oss/*]), and `database` task requires you to fill 
+    oss and db interface, namely all the fields.
+
+    this is because the task `filesystem` depends on `oss`, and the `database`
+    task depends on `oss` and `db`. each interface can have several implementations,
+    for example, the oss is implemented by `aliyun`. but it can also be impl.ed
+    by onedrive or so. the db is implemented by `mysql`, but you can implement
+    other backends such as db/access or db/postgre and so on.
+
+    you should install mysql and specify the executables 'mysql', 'mysqldump' 
+    and 'mysqladmin' to the script if you want to use the `database` task.
+
+    a valid configuration is like:
+
+    >> python sync add \
+    ..   -oss-provider aliyun \
+    ..   -id xxxxxxxxx \
+    ..   -endpoint oss-cn-wuhan-lr.aliyuncs.com \
+    ..   -bucket your-bucket \
+    ..   -oss ossutil64 \             # the executable path
+    ..   -credential xxxxxxxxx \
+    ..   -dest C:/Path/To/Your/Sync/Dir
+    ..   my-filesystem-task filesystem
+
+    once you set up, you can list your tasks using
+
+    >> python sync list
+
+    2.3) usage
+    ----------
+
+    you can use the application with
+
+    >> python sync push
+    >> python sync fetch
+    >> python sync diff
+
+
+3)  architecture
+----------------
+
+    [update later] ...
+    
+    if you want to extend it, write to ask me.
+    <xornent@outlook.com>
+
+
+4)  update logs
+---------------
+
+    1.0                                                       (mar. 31st, 2024)
 
     designed a simple script to sync my mediawiki data (the images folder and 
     mysql database) across multiple devices.
@@ -31,7 +170,7 @@
     - wiki-dbname: the mysql database to sync.
     - wiki-images: local wiki images filesystem. 
 
-    2.0  ....................................................  (apr. 3rd, 2024)
+    2.0                                                        (apr. 3rd, 2024)
 
     updated the sync utility to v2. adding features:
 
@@ -43,7 +182,7 @@
     -   the fact that they do not auto-generate on my fedora is actually a write
         protection i have not figured out why ...
     
-    3.0  ....................................................  (apr. 4th, 2024)
+    3.0                                                        (apr. 4th, 2024)
 
     update the sync utility to v3. this version is for general-purpose non-sql 
     data, only focused on the file directory sync with support of .ignore 
@@ -57,7 +196,7 @@
     files, non- frame shift mutations are rare, ones edits to the file may most 
     likely disrupts the frames, and thus resulting in changed hash. 
 
-    4.0  ....................................................  (apr. 7th, 2024)
+    4.0                                                        (apr. 7th, 2024)
 
     update utility v4. i add logic to recognize file moving operation and file 
     copies (based on the exact hash code to identify each file(s) unchanged), 
@@ -83,7 +222,7 @@
     change, i turned on move/copy alarm by default (can be turned off with -y), 
     but it is more suitable to look at the diff result manually. 
 
-    5.0  ....................................................  (apr. 8th, 2024)
+    5.0                                                        (apr. 8th, 2024)
 
     > [!!] note: v4's fetch is FAULTY. do not use v4 of code
 
@@ -93,12 +232,12 @@
 
     -   fix copy and move bugs in fetch(). 
 
-    6.0  ...................................................  (apr. 18th, 2024)
+    6.0                                                       (apr. 18th, 2024)
 
     -   minor change, accelerate the hash code calculation by skipping the files 
         with modified time and size unchanged. 
 
-    7.0  ....................................................  (mar. 3rd, 2024)
+    7.0                                                        (mar. 3rd, 2024)
 
     -   a rewrite, and major change in structure to aim as a more general-
         purpose utility program. highly modular to be extended.
@@ -107,3 +246,20 @@
 
     -   prone to be instable. do not use this version before i stablize the 
         interface and write the introduction section.
+
+    7.1, 7.2, 7.3 
+
+    -   bug fixes
+
+    8.0                                                        (mar. 8th, 2024)
+
+    -   the major release 8 fixed most of the bugs i noticed. and may become
+        good enough to use.
+
+    -   implements 2 tasks:
+
+        *   filesystem. to sync between filesystems
+        *   database. to import and export contents from local and remote
+            databases.
+        
+    -   see introduction and setup for usage.

@@ -10,7 +10,7 @@ from shared.ansi import error, fill_blank, fore_purple, ansi_reset, clear
 
 def parseArguments(app):
     
-    desc = 'sync between local and remote file systems. [v7, 2024.05.03]'
+    desc = 'sync between local and remote file systems. [v8, 2024.05.08]'
     desc += '\n' + 'application installed in: {0}'.format(app)
     desc += '\n' + 'registered tasks: {0}'.format(', '.join(get_tasks(app)))
     parser = argparse.ArgumentParser(description = desc, 
