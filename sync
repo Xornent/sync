@@ -85,7 +85,8 @@ def parseArguments(app):
                         '-' + parg, dest = parg, type = str, default = '<not-set>',
                         help = '[{0}/{1}]'.format(intf, prov)
                     )
-                    registered_confs += parg
+
+                    registered_confs += [parg]
     
 
     args = parser.parse_args()

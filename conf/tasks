@@ -8,4 +8,4 @@
 # all lines starting with '#' and all empty lines will be ignored.
 
 filesystem	oss
-# database	oss	db
+database	oss	db

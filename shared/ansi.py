@@ -122,6 +122,12 @@ def print_message(color, title, path, overwrite = True):
     else:
         print('{0}[{1}]\033[0m'.format(color, title), common_length(path, 70))
         return '{0}[{1}]\033[0m'.format(color, title) + ' ' + common_length(path, 70)
+    
+def format_file_size(size):
+    for suffix in ['B', 'KiB', 'MiB', 'GiB', 'TiB']:
+        if size < 1024.0 or suffix == 'TiB': break
+        size /= 1024.0
+    return f"{size:.2f} {suffix}"
 
 # prompt messages -------------------------------------------------------------
     

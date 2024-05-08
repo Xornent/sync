@@ -298,8 +298,7 @@ def init(app, providers: dict, kwargs: dict):
             )]
 
         print('')
-        fill_blank(100, 'Sync checksum built.')
-        print('')
+        info('Sync checksum built.')
 
         if (os.path.exists(current_chksum)):
             os.remove(current_chksum)
@@ -430,12 +429,17 @@ def init(app, providers: dict, kwargs: dict):
 
         # here, we will handle the user confirmation using cli.
 
-        info('You will manually specify behaviors for the following files:')
-        info('<x> for selection, <space> for de-selection, <j>/<k> to move up and down. \n')
+        if  len(confirm_synccfl) > 0 or \
+            len(confirm_remote_copy) > 0 or \
+            len(confirm_remote_move) > 0 or \
+            len(overview_removed) > 0:
+            info('You will manually specify behaviors for the following files:')
+            info('<x> for selection, <space> for de-selection, <j>/<k> to move up and down. \n')
 
-        warning('These files have merge conflicts (remote updated since last sync):')
-        info('place <x> when you would like to over-write the remote file with the local version')
-        info('place <space> if you want to keep the remote and local files unchanged \n')
+        if len(confirm_synccfl) > 0:
+            warning('These files have merge conflicts (remote updated since last sync):')
+            info('place <x> when you would like to over-write the remote file with the local version')
+            info('place <space> if you want to keep the remote and local files unchanged \n')
 
         choice = []
         for local_file, ltime, rtime, lline, rline, deflt in confirm_synccfl:
@@ -466,9 +470,11 @@ def init(app, providers: dict, kwargs: dict):
             
             ind += 1
 
-        warning('We detected that you move or copy local files since last sync:')
-        info('place <x> to perform copy or move remotely (saves network volume)')
-        info('place <space> if you insist on uploading another copy from local \n')
+        if len(confirm_remote_move) > 0:
+            print('\n') # ?
+            warning('We detected that you move or copy local files since last sync:')
+            info('place <x> to perform copy or move remotely (saves network volume)')
+            info('place <space> if you insist on uploading another copy from local \n')
 
         choice_move = []
         for remote_file, local_file, lline, deflt in confirm_remote_move:
@@ -505,7 +511,8 @@ def init(app, providers: dict, kwargs: dict):
             
             ind += 1
 
-        print('')
+        if len(confirm_remote_move) > 0:
+            print('\n')
         
         choice_cp = []
         for remote_file, local_file, lline, deflt in confirm_remote_copy:
@@ -541,6 +548,9 @@ def init(app, providers: dict, kwargs: dict):
                 actual_checksum += [lline]
             
             ind += 1
+
+        if len(confirm_remote_copy) > 0:
+            print('\n')
 
         print('{:<80}'.format('Upload files finished.'))
 
@@ -688,12 +698,13 @@ def init(app, providers: dict, kwargs: dict):
 
                 else: 
                     overview_downloads += [print_message('\033[1;32m', '+', remote_file)]
-                    download_rel(remote_file)
+                    download_rel(remote_file, remote_file)
                     os.utime(kwargs['dest'] + remote_file, (time.time(), r_last_modified[x]))
                     actual_checksum += [remote_line]
 
-        if len(overview_downloads) + len(overview_modified) > 0:
-            print('\n')
+        print('\r', end = '')
+        print('{:<80}'.format('Download files finished'))
+        print('')
         
         # here, we will handle the user confirmation using cli. ---------------
 
@@ -785,8 +796,7 @@ def init(app, providers: dict, kwargs: dict):
             ind += 1
 
         if len(confirm_local_move) > 0:
-            print('')
-            print('')
+            print('\n')
         
         choice_cp = []
         for old, new, rline, deflt, _ in confirm_local_copy:
@@ -825,7 +835,7 @@ def init(app, providers: dict, kwargs: dict):
             ind += 1
 
         if len(confirm_local_copy) > 0:
-            print('')
+            print('\n')
             
         # local deletion ------------------------------------------------------
 
@@ -869,9 +879,9 @@ def init(app, providers: dict, kwargs: dict):
             ind += 1
 
         if len(overview_removed) > 0:
-            print('')
+            print('\n')
 
-        print('\n\033[1;32m{0} files uploaded.\033[0m'
+        print('\033[1;32m{0} files downloaded.\033[0m'
               .format(str(len(overview_downloads))))
         for x in overview_downloads: print(x)
 
@@ -1003,7 +1013,7 @@ def init(app, providers: dict, kwargs: dict):
                 fore_green()
                 print('[l] {:<7}'.format('-------'), end = '')
                 ansi_reset()
-                print_message('\033[1;31m', '-', remote_file, overwrite = False)
+                print_message(' \033[1;31m', '-', remote_file, overwrite = False)
 
     return {
         'fetch': fetch,

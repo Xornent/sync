@@ -10,9 +10,11 @@
 import os
 import subprocess
 
+VERBOSE = False   # debug use only
+
 required_args = [
-    'oss',     # the oss commandline executable
-    'bucket',  # the remote bucket name
+    'oss',        # the oss commandline executable
+    'bucket',     # the remote bucket name
     'credential', # the oss credential
     'id',         # the oss login id
     'endpoint',   # the remote endpoint
@@ -28,7 +30,7 @@ def download_file(remote: str, local: str, kwargs: dict) -> str:
         'cp', 'oss://{0}{1}'.format(kwargs['bucket'], remote),
         local.replace('\\', '/'),
         '-c', kwargs['config-file']]
-    subprocess.run(params, capture_output = True)
+    subprocess.run(params, capture_output = not VERBOSE)
     return '{0}'.format(remote)
 
 # upload to server using absolute file to the remote destfile.
@@ -36,12 +38,12 @@ def upload_file(file: str, destfile: str, kwargs: dict) -> int:
     subprocess.run([kwargs['oss'], 'rm', 
                     'oss://{0}{1}'.format(kwargs['bucket'], 
                                           destfile.replace('\\', '/')),
-                    '-c', kwargs['config-file']], capture_output = True)
+                    '-c', kwargs['config-file']], capture_output = not VERBOSE)
     
     return subprocess.run([kwargs['oss'],
         'cp', file.replace('\\', '/'),
         'oss://{0}{1}'.format(kwargs['bucket'], destfile.replace('\\', '/')),
-        '-c', kwargs['config-file']], capture_output =True)
+        '-c', kwargs['config-file']], capture_output = not VERBOSE)
 
 # this is not actually move, since i do not want to actually delete the file
 # in the original location. i think this is safer, this makes the move method
@@ -49,22 +51,22 @@ def upload_file(file: str, destfile: str, kwargs: dict) -> int:
 def move_file(src: str, dest: str, kwargs: dict) -> int:
     subprocess.run([kwargs['oss'], 'rm', 
                     'oss://{0}{1}'.format(kwargs['bucket'], dest.replace('\\', '/')),
-                    '-c', kwargs['config-file']], capture_output = True)
+                    '-c', kwargs['config-file']], capture_output = not VERBOSE)
     
     return subprocess.run([kwargs['oss'],
         'cp', 'oss://{0}{1}'.format(kwargs['bucket'], src.replace('\\', '/')),
         'oss://{0}{1}'.format(kwargs['bucket'], dest.replace('\\', '/')),
-        '-c', kwargs['config-file']], capture_output =True)
+        '-c', kwargs['config-file']], capture_output = not VERBOSE)
 
 def copy_file(src: str, dest: str, kwargs: dict) -> int:
     subprocess.run([kwargs['oss'], 'rm', 
                     'oss://{0}{1}'.format(kwargs['bucket'], dest.replace('\\', '/')),
-                    '-c', kwargs['config-file']], capture_output = True)
+                    '-c', kwargs['config-file']], capture_output = not VERBOSE)
     
     return subprocess.run([kwargs['oss'],
         'cp', 'oss://{0}{1}'.format(kwargs['bucket'], src.replace('\\', '/')),
         'oss://{0}{1}'.format(kwargs['bucket'], dest.replace('\\', '/')),
-        '-c', kwargs['config-file']], capture_output =True)
+        '-c', kwargs['config-file']], capture_output = not VERBOSE)
 
 def init(kwargs: dict):
 
