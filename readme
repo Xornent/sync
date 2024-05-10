@@ -136,9 +136,9 @@
 
     you can use the application with
 
-    >> python sync push
-    >> python sync fetch
-    >> python sync diff
+    >> python sync push [task1, ...]
+    >> python sync fetch [task1, ...]
+    >> python sync diff [task1, ...]
 
 
 3)  architecture
@@ -263,3 +263,8 @@
             databases.
         
     -   see introduction and setup for usage.
+
+    8.1                                                       (mar. 10th, 2024)
+
+    -   you can now specify task(s) to operate using push/fetch/diff commands
+        with `sync {push, fetch, diff} [task1 [task2 [...]]]`

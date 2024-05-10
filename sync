@@ -42,12 +42,21 @@ def parseArguments(app):
     
     parser_push = subparsers.add_parser('push', 
         help = 'perform push for the tasks')
+    
+    push_task = parser_push.add_argument('tasks', nargs = '*', type = str,
+        help = 'list of tasks you would like to push')
 
     parser_fetc = subparsers.add_parser('fetch', 
         help = 'perform fetch for all tasks')
+    
+    fetch_task = parser_fetc.add_argument('tasks', nargs = '*', type = str,
+        help = 'list of tasks you would like to fetch')
 
     parser_diff = subparsers.add_parser('diff', 
         help = 'show the difference between local and remote for all the tasks')
+    
+    diff_task = parser_diff.add_argument('tasks', nargs = '*', type = str,
+        help = 'list of tasks to show diff info')
     
     available_confs = []
     registered_confs = []
@@ -271,7 +280,14 @@ if __name__ == "__main__":
          args.command == 'fetch' or \
          args.command == 'diff':
         
-        for name in confs.keys():
+        tasks = confs.keys()
+        if args.tasks: tasks = args.tasks
+
+        for x in tasks:
+            if not x in confs.keys():
+                error('the given task `{0}` is not valid'.format(x))
+
+        for name in tasks:
 
             clear() # clear the screen
 
