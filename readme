@@ -264,7 +264,9 @@
         
     -   see introduction and setup for usage.
 
-    8.1                                                       (mar. 10th, 2024)
+    8.1, 8.2                                                  (mar. 10th, 2024)
 
     -   you can now specify task(s) to operate using push/fetch/diff commands
         with `sync {push, fetch, diff} [task1 [task2 [...]]]`
+
+    -   fix database fetch error (logic error)

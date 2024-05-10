@@ -310,7 +310,7 @@ def init(app, providers: dict, kwargs: dict):
             
             print('')
 
-            if not os.path.exists(record_lastlocal):
+            if os.path.exists(record_lastlocal):
                 c_ll = read_checksums(record_lastlocal)
                 if c_ll == False:
                     error('invalid format of checksum file. {}'.format(record_lastlocal))
