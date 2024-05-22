@@ -350,7 +350,7 @@ def init(app, providers: dict, kwargs: dict):
                 copy_local(record_remote, record_lastlocal)
 
                 if os.path.exists(temp_db_backup):
-                    os.remove(temp_db_dump)
+                    os.remove(temp_db_backup)
                 copy_local(temp_db_dump, temp_db_backup)
 
                 download_abs(remote_file, temp_db_dump)
