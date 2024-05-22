@@ -305,9 +305,11 @@ if __name__ == "__main__":
             call[args.command]()
 
             print('')
-            fore_purple()
-            input('##################### Press <enter> to enter the next task #####################')
-            ansi_reset()
+
+            input('\033[7m{0}{1}{2}\033[0m'.format(
+                  '-                     ',
+                  'Press <enter> to enter the next task',
+                  '                     -'))
 
         clear()
 

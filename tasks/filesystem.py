@@ -717,7 +717,7 @@ def init(app, providers: dict, kwargs: dict):
 
         if len(confirm_synccfl) > 0:
             warning('These files have merge conflicts (remote updated since last sync):')
-            info('place <x> when you would like to over-write the remote file with the local one')
+            info('place <x> when you would like to over-write the local file with the remote one')
             info('place <space> if you want to keep the remote and local files unchanged \n')
 
         choice = []
