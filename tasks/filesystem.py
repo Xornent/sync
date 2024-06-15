@@ -971,7 +971,7 @@ def init(app, providers: dict, kwargs: dict):
                         fore_green()
                         print('[l] {:<7}'.format(l_hash_num[x][:7]), end = '')
                         ansi_reset()
-                        print_message('\033[1;30m', '.', local_file, overwrite = False)
+                        print_message(' \033[1;30m', '.', local_file, overwrite = False)
 
                     else:
                         fore_red()
