@@ -690,7 +690,7 @@ def init(app, providers: dict, kwargs: dict):
                         # the new remote file has an existing hash num at other place in the local
                         confirm_local_move += [(l_file_path[localx], remote_file, 
                                                 remote_line, True, r_last_modified[x])]
-                        overview_removed -= [l_file_path[localx]]
+                        overview_removed.remove(l_file_path[localx])
 
                     else:
                         confirm_local_copy += [(l_file_path[localx], remote_file, 
@@ -858,7 +858,7 @@ def init(app, providers: dict, kwargs: dict):
             choice_rm += [False]
         
         choice_rm = edit_lines(choice_rm)
-
+        overview_removed_msg = []
         ind = 0
         for x in overview_removed:
             action = choice_rm[ind]
